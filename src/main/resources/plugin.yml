@@ -1,0 +1,14 @@
+name: LavaCrates
+version: 1.0
+author: bNoli1
+main: hu.bNoli1.lavacrates.LavaCrates
+api-version: 1.20
+commands:
+  lavacrates:
+    description: A LavaCrates fő parancsa.
+    aliases: [lc, crates, crate]
+    permission: lavacrates.admin
+permissions:
+  lavacrates.admin:
+    description: Adminisztrátori jog a LavaCrates kezeléséhez.
+    default: op
