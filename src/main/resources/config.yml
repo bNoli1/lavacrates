@@ -1,29 +1,26 @@
-# A hologrammoknál a '|' karakter jelöli az új sort.
+# LavaCrates Konfiguráció
+# Használj HEX kódokat: &#RRGGBB (pl. &#FF5555)
+# Hologram sorváltás: |
 
-# Alap példák, ezenkívül is tudsz csinálni más ládákat!
 crates:
   alap:
     location:
+      world: world
+      x: 0
+      y: 64
+      z: 0
     key_item:
-    items: []
+      ==: org.bukkit.inventory.ItemStack
+      v: 3465
+      type: TRIPWIRE_HOOK
+      meta:
+        ==: ItemMeta
+        display-name: '{"text":"","extra":[{"text":"Láda Kulcs","color":"gold","italic":false}]}'
+    items: [] # Ide kerülnek a mentett tárgyak az esélyekkel
     hologram:
       - "&#FF8C00&lALAP LÁDA"
-      - "&7Kattints a nyitáshoz!"
-      - "&#FFD700Kulcs szükséges"
-    messages:
-      chat: "&#FF8C00LavaCrates &8» &fGratulálunk &e%player%&f! Nyertél egy &6%item%&f-et!"
-      title: "&#FFD700&lGRATULÁLUNK!"
-      subtitle: "&fJutalmad: &e%item%"
+      - "&7[Bal klikk: Előnézet]"
+      - "&#FFD700Jobb klikk a nyitáshoz!"
 
-  legendas:
-    location:
-    key_item:
-    items: []
-    hologram:
-      - "&#B22222&lLEGENDÁS LÁDA"
-      - "&7Ritka jutalmak várakoznak..."
-      - "&#FF4500| NAGYON RITKA |"
-    messages:
-      chat: "&#B22222LavaCrates &8» &#FF4500%player% &#fkinyitotta a &#B22222Legendás Ládát &#fés nyert: &#FF4500%item%&f!"
-      title: "&#B22222&lLEGENDÁS NYEREMÉNY!"
-      subtitle: "&fEzt jól elkaptad: &e%item%"
+# Ha új ládát hozol létre a /lc create paranccsal, 
+# az automatikusan meg fog jelenni itt a fájlban is.
