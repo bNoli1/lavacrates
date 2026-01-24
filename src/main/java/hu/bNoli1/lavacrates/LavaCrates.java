@@ -106,7 +106,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!(sender instanceof Player player)) return true;
         if (!player.hasPermission("lavacrates.admin")) {
-            player.sendMessage(colorize("&#FF5555Nincs jogosultságod!"));
+            player.sendMessage(colorize("&#FF5555Ehhez nincs jogosultságod!"));
             return true;
         }
 
@@ -121,7 +121,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
             loadCrates();
             activeHolograms.keySet().forEach(this::removeHologram);
             crateLocations.keySet().forEach(this::updateHologram);
-            player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#00FF7FSikeres újratöltés!"));
+            player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#00FF7FKonfiguráció újratöltve!"));
             return true;
         }
 
@@ -140,14 +140,17 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
                 }
             }
             case "delete" -> {
-                if (!crateLocations.containsKey(name)) return true;
+                if (!crateLocations.containsKey(name)) {
+                    player.sendMessage(colorize("&#FF5555Hiba: Nem létezik '" + name + "' nevű láda!"));
+                    return true;
+                }
                 removeHologram(name);
                 crateLocations.remove(name);
                 crateRewards.remove(name);
                 crateKeys.remove(name);
                 getConfig().set("crates." + name, null);
                 saveConfig();
-                player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#FB5454Láda törölve: &#FFD700" + name));
+                player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#FB5454Láda véglegesen törölve!"));
             }
             case "setlocation" -> {
                 Block b = player.getTargetBlockExact(5);
@@ -155,7 +158,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
                     crateLocations.put(name, b.getLocation());
                     saveCrate(name);
                     updateHologram(name);
-                    player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#00FF7FÚj helyszín beállítva!"));
+                    player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#00FF7FÚj helyszín elmentve!"));
                 }
             }
             case "add" -> {
@@ -169,10 +172,10 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
                         m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, chance);
                         toAdd.setItemMeta(m);
                     }
-                    crateRewards.getOrDefault(name, new ArrayList<>()).add(new CrateItem(toAdd, chance));
+                    crateRewards.computeIfAbsent(name, k -> new ArrayList<>()).add(new CrateItem(toAdd, chance));
                     saveCrate(name);
-                    player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#00FF7FTárgy hozzáadva!"));
-                } catch (Exception e) { player.sendMessage("Hibás szám!"); }
+                    player.sendMessage(colorize("&#FF8C00LavaCrates &8» &#00FF7FTárgy hozzáadva (" + chance + "%)."));
+                } catch (Exception e) { player.sendMessage(colorize("&#FF5555Hiba: Érvénytelen szám!")); }
             }
             case "edit" -> {
                 if (!crateLocations.containsKey(name)) return true;
@@ -183,6 +186,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
                 player.openInventory(inv);
             }
             case "holo" -> {
+                if (args.length < 3) return false;
                 String text = String.join(" ", Arrays.copyOfRange(args, 2, args.length));
                 getConfig().set("crates." + name + ".hologram", Arrays.asList(text.split("\\|")));
                 saveConfig();
@@ -191,6 +195,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
             }
             case "setkey" -> {
                 ItemStack hand = player.getInventory().getItemInMainHand().clone();
+                if (hand.getType().isAir()) return true;
                 hand.setAmount(1);
                 crateKeys.put(name, hand);
                 saveCrate(name);
@@ -200,28 +205,33 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
         return true;
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getClickedBlock() == null) return;
+        Location loc = event.getClickedBlock().getLocation();
         for (var entry : crateLocations.entrySet()) {
-            if (entry.getValue().equals(event.getClickedBlock().getLocation())) {
+            if (entry.getValue().equals(loc)) {
                 event.setCancelled(true);
-                if (event.getAction() == Action.LEFT_CLICK_BLOCK) {
-                    openPreview(event.getPlayer(), entry.getKey());
-                } else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) {
-                    startOpening(event.getPlayer(), entry.getKey());
-                }
+                if (event.getAction() == Action.LEFT_CLICK_BLOCK) openPreview(event.getPlayer(), entry.getKey());
+                else if (event.getAction() == Action.RIGHT_CLICK_BLOCK) startOpening(event.getPlayer(), entry.getKey());
                 return;
             }
         }
     }
 
-    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onBreak(BlockBreakEvent event) {
-        for (Location loc : crateLocations.values()) {
-            if (loc.equals(event.getBlock().getLocation())) {
+        Location loc = event.getBlock().getLocation();
+        for (Location cloc : crateLocations.values()) {
+            if (cloc.equals(loc)) {
                 event.setCancelled(true);
-                event.getPlayer().sendMessage(colorize("&#FF5555Ez egy LavaCrate blokk! Törlés: /lc delete <név>"));
+                event.getPlayer().sendMessage(colorize("&#FF5555Ez egy védett LavaCrate! Törlés: /lc delete"));
+                new BukkitRunnable() {
+                    @Override
+                    public void run() {
+                        event.getPlayer().sendBlockChange(loc, loc.getBlock().getBlockData());
+                    }
+                }.runTaskLater(this, 1L);
                 return;
             }
         }
@@ -229,13 +239,16 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
 
     private void openPreview(Player player, String name) {
         List<CrateItem> items = crateRewards.get(name);
-        if (items == null || items.isEmpty()) return;
-        Inventory inv = Bukkit.createInventory(null, 27, colorize("&#FF8C00" + name + " &#778899- Előnézet"));
+        if (items == null || items.isEmpty()) {
+            player.sendMessage(colorize("&#FF5555Ez a láda még üres!"));
+            return;
+        }
+        Inventory inv = Bukkit.createInventory(null, 27, colorize("&#FF8C00" + name + " - Előnézet"));
         for (CrateItem ci : items) {
             ItemStack is = ci.item.clone();
             ItemMeta m = is.getItemMeta();
             if (m != null) {
-                List<String> lore = (m.hasLore()) ? m.getLore() : new ArrayList<>();
+                List<String> lore = m.hasLore() ? m.getLore() : new ArrayList<>();
                 lore.add("");
                 lore.add(colorize("&#B0C4DEEsély: &#FFD700" + ci.chance + "%"));
                 m.setLore(lore);
@@ -288,14 +301,14 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
                     ItemStack item = pendingChanceEdit.remove(p.getUniqueId());
                     ItemMeta m = item.getItemMeta();
                     if (m != null) {
-                        m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, chance);
+                        m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, Math.max(1, Math.min(100, chance)));
                         item.setItemMeta(m);
                         updateLore(item, chance);
                     }
                     p.performCommand("lc edit " + editingPlayers.get(p.getUniqueId()));
                 }
             }.runTask(this);
-        } catch (Exception e) { p.sendMessage("Hibás szám!"); }
+        } catch (Exception e) { p.sendMessage(colorize("&#FF5555Hiba: Érvénytelen szám!")); }
     }
 
     @EventHandler
@@ -318,13 +331,16 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
 
     private void startOpening(Player player, String name) {
         List<CrateItem> pool = crateRewards.get(name);
-        if (pool == null || pool.isEmpty()) return;
+        if (pool == null || pool.isEmpty()) {
+            player.sendMessage(colorize("&#FF5555Ez a láda üres!"));
+            return;
+        }
         
         ItemStack key = crateKeys.get(name);
         if (key != null) {
             ItemStack hand = player.getInventory().getItemInMainHand();
             if (!hand.isSimilar(key)) { 
-                player.sendMessage(colorize("&#FF5555Ehhez a ládához speciális kulcs kell!")); 
+                player.sendMessage(colorize("&#FF5555Szükséged van egy kulcsra a nyitáshoz!")); 
                 return; 
             }
             if (hand.getAmount() > 1) hand.setAmount(hand.getAmount() - 1);
@@ -406,7 +422,35 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor 
     }
 
     private void sendHelp(Player p) {
-        p.sendMessage(colorize("&#FF8C00&l LavaCrates Súgó"));
-        p.sendMessage(colorize("&#FFA500/lc create/delete/add/edit/setlocation/setkey/holo/reload"));
+        p.sendMessage(colorize(""));
+        p.sendMessage(colorize("&#FF8C00&l LavaCrates &7- &#FFD700Adminisztrátori Segítség"));
+        p.sendMessage(colorize("&#778899&m------------------------------------------"));
+        
+        p.sendMessage(colorize("&#FFA500/lc create <név>"));
+        p.sendMessage(colorize("  &8» &fLétrehoz egy új ládát azon a blokkon, amire nézel."));
+        
+        p.sendMessage(colorize("&#FFA500/lc delete <név>"));
+        p.sendMessage(colorize("  &8» &fVéglegesen törli a ládát és minden adatát."));
+        
+        p.sendMessage(colorize("&#FFA500/lc edit <név>"));
+        p.sendMessage(colorize("  &8» &fSzerkesztő felület megnyitása (tárgyak + esélyek)."));
+        
+        p.sendMessage(colorize("&#FFA500/lc add <név> <esély>"));
+        p.sendMessage(colorize("  &8» &fA kezedben lévő tárgy hozzáadása eséllyel."));
+        
+        p.sendMessage(colorize("&#FFA500/lc setlocation <név>"));
+        p.sendMessage(colorize("  &8» &fLáda áthelyezése a nézett blokkra."));
+        
+        p.sendMessage(colorize("&#FFA500/lc setkey <név>"));
+        p.sendMessage(colorize("  &8» &fKézben tartott tárgy beállítása kulcsként."));
+        
+        p.sendMessage(colorize("&#FFA500/lc holo <név> <szöveg>"));
+        p.sendMessage(colorize("  &8» &fHologram szerkesztése (sorváltás: &e|&f)."));
+        
+        p.sendMessage(colorize("&#FFA500/lc reload"));
+        p.sendMessage(colorize("  &8» &fKonfiguráció és hologramok újratöltése."));
+        
+        p.sendMessage(colorize("&#778899&m------------------------------------------"));
+        p.sendMessage(colorize("&7Tipp: Használj HEX kódokat (&#RRGGBB) a színekhez!"));
     }
 }
