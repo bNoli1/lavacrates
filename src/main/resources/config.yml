@@ -3,7 +3,7 @@ messages:
   reload: "&#FF8C00LavaCrates &8» &#00FF7FÚjratöltve!"
   crate-created: "&#FF8C00LavaCrates &8» &#00FF7FLáda létrehozva: &#FFD700%crate%"
   key-needed: "&#FF5555Nincs kulcsod! Használd: /lc withdraw <láda> <db>"
-  item-added: "&#FF8C00LavaCrates &8» &#00FF7FTranzakció sikeres!"
+  item-added: "&#FF8C00LavaCrates &8» &#00FF7FÁtváltás sikeres!"
   givekey-success: "&#FF8C00LavaCrates &8» &#00FF7FAdtál &#FFD700%amount%x &#00FF7Fkulcsot neki: %player%"
 
 gui-titles:
@@ -20,4 +20,4 @@ party:
   current: 0
   commands:
     - "lc keyall alap 1 v"
-    - "bc &#FF8C00LavaCrates &8» &#FFD700LÁDA PARTI! &#00FF7FMindenki kapott egy virtuális kulcsot!"
+    - "bc &#FF8C00LavaCrates &8» &#FFD700LÁDA PARTI! &#00FF7FMindenki kapott egy kulcsot!"
