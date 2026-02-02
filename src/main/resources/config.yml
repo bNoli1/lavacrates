@@ -1,26 +1,23 @@
-# LavaCrates Konfiguráció
-# Használj HEX kódokat: &#RRGGBB (pl. &#FF5555)
-# Hologram sorváltás: |
+messages:
+  no-permission: "&#FF5555Nincs jogod ehhez!"
+  reload: "&#FF8C00LavaCrates &8» &#00FF7FÚjratöltve!"
+  crate-created: "&#FF8C00LavaCrates &8» &#00FF7FLáda létrehozva: &#FFD700%crate%"
+  key-needed: "&#FF5555Nincs kulcsod! Használd: /lc withdraw <láda> <db>"
+  item-added: "&#FF8C00LavaCrates &8» &#00FF7FTranzakció sikeres!"
+  givekey-success: "&#FF8C00LavaCrates &8» &#00FF7FAdtál &#FFD700%amount%x &#00FF7Fkulcsot neki: %player%"
 
-crates:
-  alap:
-    location:
-      world: world
-      x: 0
-      y: 64
-      z: 0
-    key_item:
-      ==: org.bukkit.inventory.ItemStack
-      v: 3465
-      type: TRIPWIRE_HOOK
-      meta:
-        ==: ItemMeta
-        display-name: '{"text":"","extra":[{"text":"Láda Kulcs","color":"gold","italic":false}]}'
-    items: [] # Ide kerülnek a mentett tárgyak az esélyekkel
-    hologram:
-      - "&#FF8C00&lALAP LÁDA"
-      - "&7[Bal klikk: Előnézet]"
-      - "&#FFD700Jobb klikk a nyitáshoz!"
+gui-titles:
+  preview: "&#FF8C00%crate% - Előnézet"
+  opening: "&#FFA500Nyitás: %crate%"
 
-# Ha új ládát hozol létre a /lc create paranccsal, 
-# az automatikusan meg fog jelenni itt a fájlban is.
+lore:
+  chance: "&#B0C4DEEsély: &#FFD700%chance%%"
+  separator: "&#778899&m----------------"
+
+party:
+  enabled: true
+  threshold: 100
+  current: 0
+  commands:
+    - "lc keyall alap 1 v"
+    - "bc &#FF8C00LavaCrates &8» &#FFD700LÁDA PARTI! &#00FF7FMindenki kapott egy virtuális kulcsot!"
