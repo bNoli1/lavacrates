@@ -333,7 +333,21 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
     private void openEditor(Player p, String name) {
         editingCrate.put(p.getUniqueId(), name);
         Inventory inv = Bukkit.createInventory(null, 54, colorize("&cEditor: " + name));
-        if (crateRewards.get(name) != null) crateRewards.get(name).forEach(ci -> inv.addItem(ci.getItem()));
+        if (crateRewards.get(name) != null) {
+            for (CrateItem ci : crateRewards.get(name)) {
+                ItemStack displayItem = ci.getItem().clone();
+                ItemMeta meta = displayItem.getItemMeta();
+                List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+                
+                lore.add(" ");
+                lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
+                lore.add(colorize("&c[Jobb klikk a törléshez]"));
+                
+                meta.setLore(lore);
+                displayItem.setItemMeta(meta);
+                inv.addItem(displayItem);
+            }
+        }
         p.openInventory(inv);
     }
 
@@ -347,7 +361,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
         admin.openInventory(inv);
     }
 
-private void openPreview(Player p, String name) {
+    private void openPreview(Player p, String name) {
         Inventory inv = Bukkit.createInventory(null, 54, colorize("&fElőnézet: &e" + name));
         if (crateRewards.get(name) != null) {
             for (CrateItem ci : crateRewards.get(name)) {
@@ -382,12 +396,17 @@ private void openPreview(Player p, String name) {
         if (title.contains("Editor")) {
             e.setCancelled(true);
             Player p = (Player) e.getWhoClicked();
-            if (e.isRightClick() && e.getCurrentItem() != null) {
+            if (e.isRightClick() && e.getSlot() < 54 && e.getCurrentItem() != null) {
                 String crate = editingCrate.get(p.getUniqueId());
-                crateRewards.get(crate).removeIf(ci -> ci.getItem().isSimilar(e.getCurrentItem()));
-                saveCrate(crate); openEditor(p, crate);
-            }
+              // Itt a tárgy típusa és neve alapján keressük meg az eredetit
+            crateRewards.get(crate).removeIf(ci -> 
+                ci.getItem().getType() == e.getCurrentItem().getType() &&
+                ci.getItem().getAmount() == e.getCurrentItem().getAmount()
+            );
+            saveCrate(crate);
+            openEditor(p, crate);
         }
+    }
     }
 
     @Override
