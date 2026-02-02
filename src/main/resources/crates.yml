@@ -1,5 +1,10 @@
 crates:
   alap:
+    location:
+      world: world
+      x: 100
+      y: 64
+      z: 100
     hologram:
       - "&#FF8C00&lALAP LÁDA"
       - "&7Jobb klikk a nyitáshoz"
