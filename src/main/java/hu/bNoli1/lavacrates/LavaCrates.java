@@ -347,9 +347,22 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
         admin.openInventory(inv);
     }
 
-    private void openPreview(Player p, String name) {
-        Inventory inv = Bukkit.createInventory(null, 54, colorize("&9Előnézet: " + name));
-        if (crateRewards.get(name) != null) crateRewards.get(name).forEach(ci -> inv.addItem(ci.getItem()));
+private void openPreview(Player p, String name) {
+        Inventory inv = Bukkit.createInventory(null, 54, colorize("&fElőnézet: &e" + name));
+        if (crateRewards.get(name) != null) {
+            for (CrateItem ci : crateRewards.get(name)) {
+                ItemStack displayItem = ci.getItem().clone();
+                ItemMeta meta = displayItem.getItemMeta();
+                List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+                
+                lore.add(" ");
+                lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
+                
+                meta.setLore(lore);
+                displayItem.setItemMeta(meta);
+                inv.addItem(displayItem);
+            }
+        }
         p.openInventory(inv);
     }
 
