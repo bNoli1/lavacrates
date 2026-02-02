@@ -1,23 +1,44 @@
+# ==========================================
+#          LavaCrates Konfiguráció
+# ==========================================
+
+# Üzenetek beállítása
 messages:
-  no-permission: "&#FF5555Nincs jogod ehhez!"
-  reload: "&#FF8C00LavaCrates &8» &#00FF7FÚjratöltve!"
+  no-permission: "&#FF5555Nincs jogod ehhez a parancshoz!"
+  reload: "&#FF8C00LavaCrates &8» &#00FF7FPlugin sikeresen újratöltve!"
   crate-created: "&#FF8C00LavaCrates &8» &#00FF7FLáda létrehozva: &#FFD700%crate%"
-  key-needed: "&#FF5555Nincs kulcsod! Használd: /lc withdraw <láda> <db>"
-  item-added: "&#FF8C00LavaCrates &8» &#00FF7FÁtváltás sikeres!"
-  givekey-success: "&#FF8C00LavaCrates &8» &#00FF7FAdtál &#FFD700%amount%x &#00FF7Fkulcsot neki: %player%"
+  item-added: "&#FF8C00LavaCrates &8» &#00FF7FTárgy sikeresen hozzáadva a ládához!"
+  key-needed: "&#FF5555Ehhez a ládához kulcsra van szükséged!"
+  givekey-success: "&#FF8C00LavaCrates &8» &#00FF7FSikeresen adtál &#FFD700%amount%x &#00FF7Fkulcsot neki: &#FFD700%player%"
 
+# GUI-k címei
 gui-titles:
-  preview: "&#FF8C00%crate% - Előnézet"
-  opening: "&#FFA500Nyitás: %crate%"
+  preview: "&#FF8C00%crate% &8- &#000000Tartalom"
+  opening: "&#FF8C00Nyitás: &#000000%crate%"
 
+# Tárgyak leírása a Preview-ban
 lore:
-  chance: "&#B0C4DEEsély: &#FFD700%chance%%"
   separator: "&#778899&m----------------"
+  chance: "&#B0C4DEEsély: &#FFD700%chance%%"
 
+# Ládaparti Rendszer
+# Itt minden ládához külön szekciót hozhatsz létre.
+# A szekció neve (pl. 'alap') egyezzen meg a láda nevével!
 party:
-  enabled: true
-  threshold: 100
-  current: 0
-  commands:
-    - "lc keyall alap 1 v"
-    - "bc &#FF8C00LavaCrates &8» &#FFD700LÁDA PARTI! &#00FF7FMindenki kapott egy kulcsot!"
+  alap:
+    threshold: 50
+    current: 0
+    commands:
+      - "lc keyall alap 1 v"
+      - "broadcast &#FF8C00LavaCrates &8» &#00FF7FAz Alap ládaparti elérve! Mindenki kapott egy virtuális kulcsot!"
+      - "playsound entity.firework_rocket.blast ambient @a"
+  legendas:
+    threshold: 100
+    current: 0
+    commands:
+      - "give @a diamond 10"
+      - "broadcast &#FF8C00LavaCrates &8» &#FFD700HATALMAS LEGENDA PARTI! Mindenki kapott 10 gyémántot!"
+      - "playsound entity.ender_dragon.growl ambient @a"
+
+# Frissítési gyakoriság (tickben) - 20 tick = 1 másodperc
+hologram-update-interval: 20
