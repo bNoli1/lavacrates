@@ -187,10 +187,25 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
             }
             case "add" -> {
                 if (!(sender instanceof Player p) || args.length < 3) return false;
-                int c = Integer.parseInt(args[2]); ItemStack h = p.getInventory().getItemInMainHand().clone();
-                ItemMeta m = h.getItemMeta(); m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, c); h.setItemMeta(m);
-                crateRewards.computeIfAbsent(args[1].toLowerCase(), k -> new ArrayList<>()).add(new CrateItem(h, c));
-                saveCrate(args[1].toLowerCase()); p.sendMessage(colorize("&#00FF7FAddolva!"));
+                String crateName = args[1].toLowerCase();
+                int chance = Integer.parseInt(args[2]);
+                ItemStack hand = p.getInventory().getItemInMainHand().clone();
+                
+                if (hand.getType() == Material.AIR) {
+                    p.sendMessage(colorize("&cNe a levegőt addolod!"));
+                    return true;
+                }
+
+                // Eltároljuk a PDC-ben is a biztonság kedvéért
+                ItemMeta m = hand.getItemMeta();
+                m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, chance);
+                hand.setItemMeta(m);
+
+                // Hozzáadás a memóriához
+                crateRewards.computeIfAbsent(crateName, k -> new ArrayList<>()).add(new CrateItem(hand, chance));
+                
+                saveCrate(crateName);
+                p.sendMessage(colorize("&#00FF7FSikeresen hozzáadva: &f" + hand.getType() + " &7(&6" + chance + "%&7)"));
             }
             case "edit" -> { if (sender instanceof Player p && args.length > 1) openEditor(p, args[1].toLowerCase()); }
             case "setkey" -> {
@@ -362,20 +377,26 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
     }
 
     private void openPreview(Player p, String name) {
-        Inventory inv = Bukkit.createInventory(null, 54, colorize("&fElőnézet: &e" + name));
-        if (crateRewards.get(name) != null) {
-            for (CrateItem ci : crateRewards.get(name)) {
-                ItemStack displayItem = ci.getItem().clone();
-                ItemMeta meta = displayItem.getItemMeta();
+        Inventory inv = Bukkit.createInventory(null, 54, colorize("&9Előnézet: " + name));
+        
+        List<CrateItem> items = crateRewards.get(name.toLowerCase());
+        if (items == null || items.isEmpty()) {
+            p.sendMessage(colorize("&#FF5555Ez a láda üres!"));
+            return;
+        }
+
+        for (CrateItem ci : items) {
+            ItemStack displayItem = ci.getItem().clone();
+            ItemMeta meta = displayItem.getItemMeta();
+            if (meta != null) {
                 List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
-                
                 lore.add(" ");
+                // Itt kényszerítjük a megjelenítést
                 lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
-                
                 meta.setLore(lore);
                 displayItem.setItemMeta(meta);
-                inv.addItem(displayItem);
             }
+            inv.addItem(displayItem);
         }
         p.openInventory(inv);
     }
