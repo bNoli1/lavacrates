@@ -42,3 +42,4 @@ party:
 
 # Frissítési gyakoriság (tickben) - 20 tick = 1 másodperc
 hologram-update-interval: 20
+hologram-view-distance: 50.0
