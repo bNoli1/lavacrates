@@ -423,7 +423,6 @@ public void onClick(InventoryClickEvent e) {
 
     if (!isPluginGui) return;
 
-    // Minden saját GUI-ban tiltsuk le alapból a kattintást (tárgyak kivételét)
     e.setCancelled(true);
 
     // Speciális kezelés az Editorhoz
