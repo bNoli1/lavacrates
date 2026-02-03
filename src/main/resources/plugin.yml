@@ -1,9 +1,11 @@
 name: LavaCrates
 version: 1.0
 main: hu.bNoli1.lavacrates.LavaCrates
-api-version: 1.20
-depend: [ProtocolLib]
+api-version: '1.20'
+author: bNoli1
+description: Egyedi láda plugin virtuális kulcsokkal és hologramokkal.
 commands:
   lavacrates:
     aliases: [lc]
     permission: lavacrates.admin
+    description: A plugin fő parancsa.
