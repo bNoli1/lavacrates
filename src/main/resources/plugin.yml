@@ -9,3 +9,4 @@ commands:
     aliases: [lc]
     permission: lavacrates.admin
     description: A plugin fő parancsa.
+    
