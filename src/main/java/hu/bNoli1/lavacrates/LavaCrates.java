@@ -86,24 +86,28 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
         return ChatColor.translateAlternateColorCodes('&', msg);
     }
 
-    private void loadCrates() {
-        crateLocations.clear(); crateRewards.clear(); crateKeys.clear();
-        if (cratesConfig.getConfigurationSection("crates") == null) return;
-        for (String key : cratesConfig.getConfigurationSection("crates").getKeys(false)) {
-            crateLocations.put(key, cratesConfig.getLocation("crates." + key + ".location"));
-            crateKeys.put(key, cratesConfig.getItemStack("crates." + key + ".key_item"));
-            List<CrateItem> items = new ArrayList<>();
-            List<?> list = cratesConfig.getList("crates." + key + ".items");
-            if (list != null) {
-                for (Object obj : list) {
-                    if (obj instanceof ItemStack is) {
-                        int chance = is.getItemMeta().getPersistentDataContainer().getOrDefault(chanceKey, PersistentDataType.INTEGER, 100);
-                        items.add(new CrateItem(is, chance));
+private void loadCrates() {
+    crateLocations.clear(); crateRewards.clear(); crateKeys.clear();
+    if (cratesConfig.getConfigurationSection("crates") == null) return;
+    for (String key : cratesConfig.getConfigurationSection("crates").getKeys(false)) {
+        crateLocations.put(key, cratesConfig.getLocation("crates." + key + ".location"));
+        crateKeys.put(key, cratesConfig.getItemStack("crates." + key + ".key_item"));
+        
+        List<CrateItem> items = new ArrayList<>();
+        List<?> list = cratesConfig.getList("crates." + key + ".items");
+        if (list != null) {
+            for (Object obj : list) {
+                if (obj instanceof ItemStack is) {
+                    ItemMeta meta = is.getItemMeta();
+                    int chance = 100;
+                    if (meta != null && meta.getPersistentDataContainer().has(chanceKey, PersistentDataType.INTEGER)) {
+                        chance = meta.getPersistentDataContainer().get(chanceKey, PersistentDataType.INTEGER);
                     }
+                    items.add(new CrateItem(is, chance));
                 }
             }
-            crateRewards.put(key, items);
         }
+        crateRewards.put(key, items);
     }
 
     private void startHologramTask() {
@@ -125,38 +129,32 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
         }.runTaskTimer(this, 20L, 20L);
     }
 
-    private void updatePersonalHologram(Player p, String name) {
-        Location baseLoc = crateLocations.get(name);
-        if (baseLoc == null) return;
-        Location loc = baseLoc.clone().add(0.5, 1.2, 0.5);
+private void updatePersonalHologram(Player p, String name) {
+    Location baseLoc = crateLocations.get(name);
+    if (baseLoc == null || !baseLoc.getWorld().equals(p.getWorld())) return;
+
+    Map<String, List<ArmorStand>> pMap = personalHolograms.computeIfAbsent(p.getUniqueId(), k -> new HashMap<>());
+    
+    // Ha már létezik, csak a nevét frissítjük
+    if (pMap.containsKey(name)) {
+        List<ArmorStand> stands = pMap.get(name);
         List<String> lines = cratesConfig.getStringList("crates." + name + ".hologram");
-        if (lines.isEmpty()) return;
+        Collections.reverse(lines); // A sorrend miatt
 
         int keys = dataConfig.getInt("players." + p.getUniqueId() + "." + name, 0);
         int rem = getConfig().getInt("party." + name + ".threshold", 100) - getConfig().getInt("party." + name + ".current", 0);
 
-        Map<String, List<ArmorStand>> pMap = personalHolograms.computeIfAbsent(p.getUniqueId(), k -> new HashMap<>());
-
-        if (pMap.containsKey(name)) {
-            List<ArmorStand> stands = pMap.get(name);
-            for (int i = 0; i < lines.size(); i++) {
-                if (i < stands.size()) {
-                    String text = lines.get((lines.size() - 1) - i)
-                            .replace("%keys%", (keys > 0 ? "&a" : "&c") + keys)
-                            .replace("%party%", String.valueOf(rem));
-                    stands.get(i).setCustomName(colorize(text));
-                }
+        for (int i = 0; i < stands.size(); i++) {
+            if (i < lines.size()) {
+                String text = lines.get(i)
+                        .replace("%keys%", (keys > 0 ? "&a" : "&c") + keys)
+                        .replace("%party%", String.valueOf(rem));
+                stands.get(i).setCustomName(colorize(text));
             }
-        } else {
-            List<ArmorStand> stands = new ArrayList<>();
-            for (int i = 0; i < lines.size(); i++) {
-                ArmorStand as = (ArmorStand) loc.getWorld().spawnEntity(loc.clone().add(0, i * 0.28, 0), EntityType.ARMOR_STAND);
-                as.setVisible(false); as.setGravity(false); as.setMarker(true); as.setCustomNameVisible(true); as.setPersistent(false);
-                stands.add(as);
-            }
-            pMap.put(name, stands);
-            for (Player other : Bukkit.getOnlinePlayers()) if (!other.equals(p)) stands.forEach(as -> other.hideEntity(this, as));
         }
+    } else {
+        // Csak akkor spawnolunk, ha még nincs ott!
+        spawnHologram(p, name);
     }
 
     private void removePersonalHologram(Player p, String name) {
@@ -410,24 +408,41 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
         saveCratesFile();
     }
 
-    @EventHandler
-    public void onClick(InventoryClickEvent e) {
-        String title = e.getView().getTitle();
-        if (title.contains("Nyitás") || title.contains("Előnézet") || title.contains("Napló")) e.setCancelled(true);
-        if (title.contains("Editor")) {
-            e.setCancelled(true);
-            Player p = (Player) e.getWhoClicked();
-            if (e.isRightClick() && e.getSlot() < 54 && e.getCurrentItem() != null) {
-                String crate = editingCrate.get(p.getUniqueId());
-              // Itt a tárgy típusa és neve alapján keressük meg az eredetit
-            crateRewards.get(crate).removeIf(ci -> 
-                ci.getItem().getType() == e.getCurrentItem().getType() &&
-                ci.getItem().getAmount() == e.getCurrentItem().getAmount()
-            );
-            saveCrate(crate);
-            openEditor(p, crate);
+@EventHandler
+public void onClick(InventoryClickEvent e) {
+    if (e.getClickedInventory() == null) return;
+    
+    String title = e.getView().getTitle();
+    Player p = (Player) e.getWhoClicked();
+
+    // Csak azokat a GUI-kat figyeljük, amiknek a címe megegyezik a plugin által használtakkal
+    boolean isPluginGui = title.contains(colorize("&6Nyitás...")) || 
+                          title.contains(colorize("&9Előnézet:")) || 
+                          title.contains(colorize("Napló:")) || 
+                          title.contains(colorize("&cEditor:"));
+
+    if (!isPluginGui) return;
+
+    // Minden saját GUI-ban tiltsuk le alapból a kattintást (tárgyak kivételét)
+    e.setCancelled(true);
+
+    // Speciális kezelés az Editorhoz
+    if (title.contains(colorize("&cEditor:"))) {
+        String crate = editingCrate.get(p.getUniqueId());
+        if (crate == null || e.getCurrentItem() == null || e.getCurrentItem().getType() == Material.AIR) return;
+
+        // Csak ha a felső inventory-ba kattintott
+        if (e.getRawSlot() < e.getInventory().getSize()) {
+            if (e.isRightClick()) {
+                // Tárgy eltávolítása a listából
+                crateRewards.get(crate).removeIf(ci -> ci.getItem().isSimilar(e.getCurrentItem()));
+                saveCrate(crate);
+                
+                // GUI frissítése
+                openEditor(p, crate);
+                p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_BREAK, 0.5f, 1f);
+            }
         }
-    }
     }
 
     @Override
