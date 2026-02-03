@@ -408,40 +408,43 @@ private void updatePersonalHologram(Player p, String name) {
         saveCratesFile();
     }
 
-@EventHandler
-public void onClick(InventoryClickEvent e) {
-    if (e.getClickedInventory() == null) return;
-    
-    String title = e.getView().getTitle();
-    Player p = (Player) e.getWhoClicked();
+    @EventHandler
+    public void onClick(InventoryClickEvent e) {
+        if (e.getClickedInventory() == null) return;
+        
+        String title = e.getView().getTitle();
+        Player p = (Player) e.getWhoClicked();
 
-    // Csak azokat a GUI-kat figyeljük, amiknek a címe megegyezik a plugin által használtakkal
-    boolean isPluginGui = title.contains(colorize("&6Nyitás...")) || 
-                          title.contains(colorize("&9Előnézet:")) || 
-                          title.contains(colorize("Napló:")) || 
-                          title.contains(colorize("&cEditor:"));
+        // Ellenőrizzük, hogy a mi GUI-nk-e
+        boolean isPluginGui = title.contains(colorize("&6Nyitás...")) || 
+                              title.contains(colorize("&9Előnézet:")) || 
+                              title.contains(colorize("Napló:")) || 
+                              title.contains(colorize("&cEditor:"));
 
-    if (!isPluginGui) return;
+        if (!isPluginGui) return;
 
-    e.setCancelled(true);
+        e.setCancelled(true);
 
-    // Speciális kezelés az Editorhoz
-    if (title.contains(colorize("&cEditor:"))) {
-        String crate = editingCrate.get(p.getUniqueId());
-        if (crate == null || e.getCurrentItem() == null || e.getCurrentItem().getType() == Material.AIR) return;
+        if (title.contains(colorize("&cEditor:"))) {
+            String crate = editingCrate.get(p.getUniqueId());
+            if (crate == null || e.getCurrentItem() == null) return;
 
-        // Csak ha a felső inventory-ba kattintott
-        if (e.getRawSlot() < e.getInventory().getSize()) {
-            if (e.isRightClick()) {
-                // Tárgy eltávolítása a listából
+            if (e.getRawSlot() < e.getInventory().getSize() && e.isRightClick()) {
+                // Biztonságos törlés isSimilar-al
                 crateRewards.get(crate).removeIf(ci -> ci.getItem().isSimilar(e.getCurrentItem()));
                 saveCrate(crate);
-                
-                // GUI frissítése
                 openEditor(p, crate);
-                p.playSound(p.getLocation(), Sound.BLOCK_ANVIL_BREAK, 0.5f, 1f);
             }
         }
+    } // Az onClick vége
+
+    @Override
+    public List<String> onTabComplete(CommandSender s, Command c, String a, String[] args) {
+        if (args.length == 1) {
+            return Arrays.asList("create", "delete", "add", "edit", "setkey", "givekey", "keyall", "withdraw", "holo", "logs", "reload", "list", "move", "clean");
+        }
+        return new ArrayList<>();
+
     }
 
     @Override
