@@ -39,7 +39,7 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
 
     private static class CrateItem {
         private final ItemStack item;
-        private int chance;
+        private final int chance;
         public CrateItem(ItemStack item, int chance) { this.item = item; this.chance = chance; }
         public ItemStack getItem() { return item; }
         public int getChance() { return chance; }
@@ -86,28 +86,28 @@ public class LavaCrates extends JavaPlugin implements Listener, CommandExecutor,
         return ChatColor.translateAlternateColorCodes('&', msg);
     }
 
-private void loadCrates() {
-    crateLocations.clear(); crateRewards.clear(); crateKeys.clear();
-    if (cratesConfig.getConfigurationSection("crates") == null) return;
-    for (String key : cratesConfig.getConfigurationSection("crates").getKeys(false)) {
-        crateLocations.put(key, cratesConfig.getLocation("crates." + key + ".location"));
-        crateKeys.put(key, cratesConfig.getItemStack("crates." + key + ".key_item"));
-        
-        List<CrateItem> items = new ArrayList<>();
-        List<?> list = cratesConfig.getList("crates." + key + ".items");
-        if (list != null) {
-            for (Object obj : list) {
-                if (obj instanceof ItemStack is) {
-                    ItemMeta meta = is.getItemMeta();
-                    int chance = 100;
-                    if (meta != null && meta.getPersistentDataContainer().has(chanceKey, PersistentDataType.INTEGER)) {
-                        chance = meta.getPersistentDataContainer().get(chanceKey, PersistentDataType.INTEGER);
+    private void loadCrates() {
+        crateLocations.clear(); crateRewards.clear(); crateKeys.clear();
+        if (cratesConfig.getConfigurationSection("crates") == null) return;
+        for (String key : cratesConfig.getConfigurationSection("crates").getKeys(false)) {
+            crateLocations.put(key, cratesConfig.getLocation("crates." + key + ".location"));
+            crateKeys.put(key, cratesConfig.getItemStack("crates." + key + ".key_item"));
+            List<CrateItem> items = new ArrayList<>();
+            List<?> list = cratesConfig.getList("crates." + key + ".items");
+            if (list != null) {
+                for (Object obj : list) {
+                    if (obj instanceof ItemStack) {
+                        ItemStack is = (ItemStack) obj;
+                        int chance = 100;
+                        if (is.getItemMeta() != null) {
+                            chance = is.getItemMeta().getPersistentDataContainer().getOrDefault(chanceKey, PersistentDataType.INTEGER, 100);
+                        }
+                        items.add(new CrateItem(is, chance));
                     }
-                    items.add(new CrateItem(is, chance));
                 }
             }
+            crateRewards.put(key, items);
         }
-        crateRewards.put(key, items);
     }
 
     private void startHologramTask() {
@@ -129,32 +129,38 @@ private void loadCrates() {
         }.runTaskTimer(this, 20L, 20L);
     }
 
-private void updatePersonalHologram(Player p, String name) {
-    Location baseLoc = crateLocations.get(name);
-    if (baseLoc == null || !baseLoc.getWorld().equals(p.getWorld())) return;
-
-    Map<String, List<ArmorStand>> pMap = personalHolograms.computeIfAbsent(p.getUniqueId(), k -> new HashMap<>());
-    
-    // Ha már létezik, csak a nevét frissítjük
-    if (pMap.containsKey(name)) {
-        List<ArmorStand> stands = pMap.get(name);
+    private void updatePersonalHologram(Player p, String name) {
+        Location baseLoc = crateLocations.get(name);
+        if (baseLoc == null) return;
+        Location loc = baseLoc.clone().add(0.5, 1.2, 0.5);
         List<String> lines = cratesConfig.getStringList("crates." + name + ".hologram");
-        Collections.reverse(lines); // A sorrend miatt
+        if (lines.isEmpty()) return;
 
         int keys = dataConfig.getInt("players." + p.getUniqueId() + "." + name, 0);
         int rem = getConfig().getInt("party." + name + ".threshold", 100) - getConfig().getInt("party." + name + ".current", 0);
 
-        for (int i = 0; i < stands.size(); i++) {
-            if (i < lines.size()) {
-                String text = lines.get(i)
-                        .replace("%keys%", (keys > 0 ? "&a" : "&c") + keys)
-                        .replace("%party%", String.valueOf(rem));
-                stands.get(i).setCustomName(colorize(text));
+        Map<String, List<ArmorStand>> pMap = personalHolograms.computeIfAbsent(p.getUniqueId(), k -> new HashMap<>());
+
+        if (pMap.containsKey(name)) {
+            List<ArmorStand> stands = pMap.get(name);
+            for (int i = 0; i < lines.size(); i++) {
+                if (i < stands.size()) {
+                    String text = lines.get((lines.size() - 1) - i)
+                            .replace("%keys%", (keys > 0 ? "&a" : "&c") + keys)
+                            .replace("%party%", String.valueOf(rem));
+                    stands.get(i).setCustomName(colorize(text));
+                }
             }
+        } else {
+            List<ArmorStand> stands = new ArrayList<>();
+            for (int i = 0; i < lines.size(); i++) {
+                ArmorStand as = (ArmorStand) loc.getWorld().spawnEntity(loc.clone().add(0, i * 0.28, 0), EntityType.ARMOR_STAND);
+                as.setVisible(false); as.setGravity(false); as.setMarker(true); as.setCustomNameVisible(true); as.setPersistent(false);
+                stands.add(as);
+            }
+            pMap.put(name, stands);
+            for (Player other : Bukkit.getOnlinePlayers()) if (!other.equals(p)) stands.forEach(as -> other.hideEntity(this, as));
         }
-    } else {
-        // Csak akkor spawnolunk, ha még nincs ott!
-        spawnHologram(p, name);
     }
 
     private void removePersonalHologram(Player p, String name) {
@@ -173,102 +179,90 @@ private void updatePersonalHologram(Player p, String name) {
         
         String act = args[0].toLowerCase();
         switch (act) {
-            case "create", "move" -> {
-                if (!(sender instanceof Player p) || args.length < 2) return false;
+            case "create":
+            case "move":
+                if (!(sender instanceof Player) || args.length < 2) return false;
+                Player p = (Player) sender;
                 crateLocations.put(args[1].toLowerCase(), p.getTargetBlockExact(5).getLocation());
                 saveCrate(args[1].toLowerCase()); p.sendMessage(colorize("&#00FF7FSikeres!"));
-            }
-            case "delete" -> {
+                break;
+            case "delete":
                 if (args.length < 2) return false;
                 String n = args[1].toLowerCase(); crateLocations.remove(n); cratesConfig.set("crates." + n, null);
                 saveCratesFile(); sender.sendMessage(colorize("&#FB5454Törölve!"));
-            }
-            case "add" -> {
-                if (!(sender instanceof Player p) || args.length < 3) return false;
+                break;
+            case "add":
+                if (!(sender instanceof Player) || args.length < 3) return false;
+                Player pAdd = (Player) sender;
                 String crateName = args[1].toLowerCase();
                 int chance = Integer.parseInt(args[2]);
-                ItemStack hand = p.getInventory().getItemInMainHand().clone();
-                
-                if (hand.getType() == Material.AIR) {
-                    p.sendMessage(colorize("&cNe a levegőt addolod!"));
-                    return true;
-                }
-
-                // Eltároljuk a PDC-ben is a biztonság kedvéért
+                ItemStack hand = pAdd.getInventory().getItemInMainHand().clone();
+                if (hand.getType() == Material.AIR) { pAdd.sendMessage(colorize("&cÜres kézzel nem megy!")); return true; }
                 ItemMeta m = hand.getItemMeta();
-                m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, chance);
-                hand.setItemMeta(m);
-
-                // Hozzáadás a memóriához
+                if (m != null) {
+                    m.getPersistentDataContainer().set(chanceKey, PersistentDataType.INTEGER, chance);
+                    hand.setItemMeta(m);
+                }
                 crateRewards.computeIfAbsent(crateName, k -> new ArrayList<>()).add(new CrateItem(hand, chance));
-                
                 saveCrate(crateName);
-                p.sendMessage(colorize("&#00FF7FSikeresen hozzáadva: &f" + hand.getType() + " &7(&6" + chance + "%&7)"));
-            }
-            case "edit" -> { if (sender instanceof Player p && args.length > 1) openEditor(p, args[1].toLowerCase()); }
-            case "setkey" -> {
-                if (!(sender instanceof Player p) || args.length < 2) return true;
-                ItemStack h = p.getInventory().getItemInMainHand().clone(); h.setAmount(1);
+                pAdd.sendMessage(colorize("&#00FF7FHozzáadva!"));
+                break;
+            case "edit":
+                if (sender instanceof Player && args.length > 1) openEditor((Player)sender, args[1].toLowerCase());
+                break;
+            case "setkey":
+                if (!(sender instanceof Player) || args.length < 2) return true;
+                Player pKey = (Player) sender;
+                ItemStack h = pKey.getInventory().getItemInMainHand().clone(); h.setAmount(1);
                 crateKeys.put(args[1].toLowerCase(), h); saveCrate(args[1].toLowerCase());
-                p.sendMessage(colorize("&#00FF7FKulcs beállítva!"));
-            }
-            case "givekey" -> {
+                pKey.sendMessage(colorize("&#00FF7FKulcs beállítva!"));
+                break;
+            case "givekey":
                 if (args.length < 4) return false;
                 Player t = Bukkit.getPlayer(args[1]); int am = Integer.parseInt(args[3]); String cn = args[2].toLowerCase();
                 if (t == null) return true;
                 if (args.length > 4 && args[4].equalsIgnoreCase("v")) {
                     dataConfig.set("players." + t.getUniqueId() + "." + cn, dataConfig.getInt("players." + t.getUniqueId() + "." + cn, 0) + am); saveData();
                 } else if(crateKeys.containsKey(cn)) { ItemStack k = crateKeys.get(cn).clone(); k.setAmount(am); t.getInventory().addItem(k); }
-            }
-            case "keyall" -> {
+                break;
+            case "keyall":
                 if (args.length < 3) return false;
-                String cn = args[1].toLowerCase(); int am = Integer.parseInt(args[2]);
-                for (Player p : Bukkit.getOnlinePlayers()) {
+                String cnA = args[1].toLowerCase(); int amA = Integer.parseInt(args[2]);
+                for (Player pa : Bukkit.getOnlinePlayers()) {
                     if (args.length > 3 && args[3].equalsIgnoreCase("v")) {
-                        dataConfig.set("players." + p.getUniqueId() + "." + cn, dataConfig.getInt("players." + p.getUniqueId() + "." + cn, 0) + am);
-                    } else if(crateKeys.containsKey(cn)) p.getInventory().addItem(crateKeys.get(cn).clone());
+                        dataConfig.set("players." + pa.getUniqueId() + "." + cnA, dataConfig.getInt("players." + pa.getUniqueId() + "." + cnA, 0) + amA);
+                    } else if(crateKeys.containsKey(cnA)) pa.getInventory().addItem(crateKeys.get(cnA).clone());
                 }
                 saveData(); Bukkit.broadcastMessage(colorize("&#00FF7FMindenki kapott kulcsot!"));
-            }
-            case "withdraw" -> {
-                if (!(sender instanceof Player p) || args.length < 3) return true;
-                String cn = args[1].toLowerCase(); int am = Integer.parseInt(args[2]);
-                int cur = dataConfig.getInt("players." + p.getUniqueId() + "." + cn, 0);
-                if (cur >= am && crateKeys.containsKey(cn)) {
-                    dataConfig.set("players." + p.getUniqueId() + "." + cn, cur - am); saveData();
-                    ItemStack k = crateKeys.get(cn).clone(); k.setAmount(am); p.getInventory().addItem(k);
+                break;
+            case "withdraw":
+                if (!(sender instanceof Player) || args.length < 3) return true;
+                Player pW = (Player) sender;
+                String cnW = args[1].toLowerCase(); int amW = Integer.parseInt(args[2]);
+                int cur = dataConfig.getInt("players." + pW.getUniqueId() + "." + cnW, 0);
+                if (cur >= amW && crateKeys.containsKey(cnW)) {
+                    dataConfig.set("players." + pW.getUniqueId() + "." + cnW, cur - amW); saveData();
+                    ItemStack k = crateKeys.get(cnW).clone(); k.setAmount(amW); pW.getInventory().addItem(k);
                 }
-            }
-            case "holo" -> {
+                break;
+            case "holo":
                 if (args.length < 3) return false;
                 cratesConfig.set("crates." + args[1].toLowerCase() + ".hologram", Arrays.asList(String.join(" ", Arrays.copyOfRange(args, 2, args.length)).split("\\|")));
                 saveCratesFile(); sender.sendMessage(colorize("&#00FF7FHologram kész!"));
-            }
-            case "logs" -> { if (sender instanceof Player p && args.length > 1) openLogs(p, Bukkit.getPlayer(args[1])); }
-            case "list" -> {
-                sender.sendMessage(colorize("&#FF8C00Ládák:"));
-                crateLocations.keySet().forEach(n -> sender.sendMessage(colorize(" &8• &f" + n)));
-            }
-            case "clean" -> { personalHolograms.values().forEach(m -> m.values().forEach(l -> l.forEach(Entity::remove))); personalHolograms.clear(); }
-            case "reload" -> { reloadConfig(); loadFiles(); loadCrates(); sender.sendMessage(colorize("&#00FF7FÚjratöltve!")); }
-            default -> sendHelp(sender);
+                break;
+            case "reload":
+                reloadConfig(); loadFiles(); loadCrates(); sender.sendMessage(colorize("&#00FF7FÚjratöltve!"));
+                break;
+            default: sendHelp(sender); break;
         }
         return true;
     }
 
     private void sendHelp(CommandSender s) {
-        s.sendMessage(colorize(" "));
         s.sendMessage(colorize("&#FF8C00&l[ LavaCrates Segítség ]"));
-        s.sendMessage(colorize("&8• &f/lc create/move/delete <név> &7- Láda kezelés"));
-        s.sendMessage(colorize("&8• &f/lc add <név> <esély> &7- Tárgy hozzáadása"));
-        s.sendMessage(colorize("&8• &f/lc edit <név> &7- GUI szerkesztő (törlés)"));
-        s.sendMessage(colorize("&8• &f/lc setkey <név> &7- Kulcs tárgy beállítása"));
-        s.sendMessage(colorize("&8• &f/lc givekey/keyall <player> <láda> <db> [v] &7- Kulcsadás"));
-        s.sendMessage(colorize("&8• &f/lc withdraw <láda> <db> &7- Virtuális -> Fizikai"));
-        s.sendMessage(colorize("&8• &f/lc holo <név> <szöveg> &7- Hologram (Sorok: | )"));
-        s.sendMessage(colorize("&8• &f/lc logs <player> &7- Nyitási előzmények"));
-        s.sendMessage(colorize("&8• &f/lc list/clean/reload &7- Rendszer parancsok"));
-        s.sendMessage(colorize(" "));
+        s.sendMessage(colorize("&8• &f/lc create/move/delete <név>"));
+        s.sendMessage(colorize("&8• &f/lc add <név> <esély>"));
+        s.sendMessage(colorize("&8• &f/lc edit <név>"));
     }
 
     @EventHandler
@@ -294,7 +288,7 @@ private void updatePersonalHologram(Player p, String name) {
             giveRandomReward(p, name);
             handleParty(name);
         }
-        p.sendMessage(colorize("&#FF8C00LavaCrates &8» &f" + toOpen + "x nyitás sikeres!"));
+        p.sendMessage(colorize("&#FF8C00LavaCrates &8» &f" + toOpen + "x nyitás!"));
     }
 
     private void startOpening(Player p, String name) {
@@ -321,12 +315,12 @@ private void updatePersonalHologram(Player p, String name) {
     private void giveRandomReward(Player p, String name) {
         List<CrateItem> pool = crateRewards.get(name);
         if (pool == null || pool.isEmpty()) return;
-        int sum = pool.stream().mapToInt(CrateItem::getChance).sum(), r = random.nextInt(sum > 0 ? sum : 1), c = 0;
+        int sum = pool.stream().mapToInt(CrateItem::getChance).sum();
+        int r = random.nextInt(sum > 0 ? sum : 1), c = 0;
         for (CrateItem ci : pool) {
             c += ci.getChance();
             if (r < c) {
                 p.getInventory().addItem(ci.getItem().clone());
-                openingLogs.computeIfAbsent(p.getUniqueId(), k -> new ArrayList<>()).add(name + " | " + ci.getItem().getType());
                 break;
             }
         }
@@ -350,51 +344,34 @@ private void updatePersonalHologram(Player p, String name) {
             for (CrateItem ci : crateRewards.get(name)) {
                 ItemStack displayItem = ci.getItem().clone();
                 ItemMeta meta = displayItem.getItemMeta();
-                List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
-                
-                lore.add(" ");
-                lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
-                lore.add(colorize("&c[Jobb klikk a törléshez]"));
-                
-                meta.setLore(lore);
-                displayItem.setItemMeta(meta);
+                if (meta != null) {
+                    List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+                    lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
+                    lore.add(colorize("&c[Jobb klikk a törléshez]"));
+                    meta.setLore(lore);
+                    displayItem.setItemMeta(meta);
+                }
                 inv.addItem(displayItem);
             }
         }
         p.openInventory(inv);
     }
 
-    private void openLogs(Player admin, Player target) {
-        if (target == null) return;
-        Inventory inv = Bukkit.createInventory(null, 54, "Napló: " + target.getName());
-        openingLogs.getOrDefault(target.getUniqueId(), new ArrayList<>()).forEach(s -> {
-            ItemStack i = new ItemStack(Material.PAPER); ItemMeta m = i.getItemMeta();
-            m.setDisplayName(colorize("&e" + s)); i.setItemMeta(m); inv.addItem(i);
-        });
-        admin.openInventory(inv);
-    }
-
     private void openPreview(Player p, String name) {
         Inventory inv = Bukkit.createInventory(null, 54, colorize("&9Előnézet: " + name));
-        
         List<CrateItem> items = crateRewards.get(name.toLowerCase());
-        if (items == null || items.isEmpty()) {
-            p.sendMessage(colorize("&#FF5555Ez a láda üres!"));
-            return;
-        }
-
-        for (CrateItem ci : items) {
-            ItemStack displayItem = ci.getItem().clone();
-            ItemMeta meta = displayItem.getItemMeta();
-            if (meta != null) {
-                List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
-                lore.add(" ");
-                // Itt kényszerítjük a megjelenítést
-                lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
-                meta.setLore(lore);
-                displayItem.setItemMeta(meta);
+        if (items != null) {
+            for (CrateItem ci : items) {
+                ItemStack displayItem = ci.getItem().clone();
+                ItemMeta meta = displayItem.getItemMeta();
+                if (meta != null) {
+                    List<String> lore = meta.hasLore() ? meta.getLore() : new ArrayList<>();
+                    lore.add(colorize("&8» &fEsély: &6" + ci.getChance() + "%"));
+                    meta.setLore(lore);
+                    displayItem.setItemMeta(meta);
+                }
+                inv.addItem(displayItem);
             }
-            inv.addItem(displayItem);
         }
         p.openInventory(inv);
     }
@@ -411,45 +388,29 @@ private void updatePersonalHologram(Player p, String name) {
     @EventHandler
     public void onClick(InventoryClickEvent e) {
         if (e.getClickedInventory() == null) return;
-        
         String title = e.getView().getTitle();
         Player p = (Player) e.getWhoClicked();
 
-        // Ellenőrizzük, hogy a mi GUI-nk-e
         boolean isPluginGui = title.contains(colorize("&6Nyitás...")) || 
                               title.contains(colorize("&9Előnézet:")) || 
-                              title.contains(colorize("Napló:")) || 
                               title.contains(colorize("&cEditor:"));
 
         if (!isPluginGui) return;
-
         e.setCancelled(true);
 
         if (title.contains(colorize("&cEditor:"))) {
             String crate = editingCrate.get(p.getUniqueId());
-            if (crate == null || e.getCurrentItem() == null) return;
-
-            if (e.getRawSlot() < e.getInventory().getSize() && e.isRightClick()) {
-                // Biztonságos törlés isSimilar-al
+            if (crate != null && e.isRightClick() && e.getCurrentItem() != null) {
                 crateRewards.get(crate).removeIf(ci -> ci.getItem().isSimilar(e.getCurrentItem()));
                 saveCrate(crate);
                 openEditor(p, crate);
             }
         }
-    } // Az onClick vége
-
-    @Override
-    public List<String> onTabComplete(CommandSender s, Command c, String a, String[] args) {
-        if (args.length == 1) {
-            return Arrays.asList("create", "delete", "add", "edit", "setkey", "givekey", "keyall", "withdraw", "holo", "logs", "reload", "list", "move", "clean");
-        }
-        return new ArrayList<>();
-
     }
 
     @Override
     public List<String> onTabComplete(CommandSender s, Command c, String a, String[] args) {
-        if (args.length == 1) return Arrays.asList("create", "delete", "add", "edit", "setkey", "givekey", "keyall", "withdraw", "holo", "logs", "reload", "list", "move", "clean");
+        if (args.length == 1) return Arrays.asList("create", "delete", "add", "edit", "setkey", "givekey", "keyall", "withdraw", "holo", "reload");
         return null;
     }
 }
